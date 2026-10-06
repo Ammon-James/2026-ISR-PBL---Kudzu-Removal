@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Leaflet Map App</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+        }
+
+        /* Leaflet Container Responsiveness */
+        #map {
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        /* Custom Popup Styling */
+        .leaflet-popup-content-wrapper {
+            padding: 0;
+            overflow: hidden;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+            background: #ffffff;
+        }
+        
+        .leaflet-popup-content {
+            margin: 0;
+            line-height: 1.5;
+            width: 280px !important;
+        }
+
+        .leaflet-container a.leaflet-popup-close-button {
+            color: #ffffff;
+            padding: 8px;
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 50%;
+            top: 10px;
+            right: 10px;
+            width: 26px;
+            height: 26px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(4px);
+            transition: all 0.2s;
+        }
+
+        .leaflet-container a.leaflet-popup-close-button:hover {
+            background: rgba(0, 0, 0, 0.7);
+            color: #ffffff;
+        }
+
+        /* Leaflet Control Overrides */
+        .leaflet-control-zoom {
+            border: none !important;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1) !important;
+            border-radius: 10px !important;
+            overflow: hidden;
+        }
+
+        .leaflet-control-zoom-in, .leaflet-control-zoom-out {
+            background-color: #ffffff !important;
+            color: #374151 !important;
+            border-bottom: 1px solid #f3f4f6 !important;
+            width: 36px !important;
+            height: 36px !important;
+            line-height: 36px !important;
+            font-size: 16px !important;
+        }
+
+        .leaflet-control-zoom-in:hover, .leaflet-control-zoom-out:hover {
+            background-color: #f9fafb !important;
+            color: #111827 !important;
+        }
+
+        /* Custom Marker Pulse Effect */
+        .custom-div-icon {
+            background: transparent;
+            border: none;
+        }
+
+        .marker-pin {
+            width: 36px;
+            height: 36px;
+            border-radius: 50% 50% 50% 0;
+            position: absolute;
+            transform: rotate(-45deg);
+            left: 50%;
+            top: 50%;
+            margin: -20px 0 0 -18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .marker-pin:hover {
+            transform: rotate(-45deg) scale(1.15);
+            box-shadow: 0 6px 14px rgba(0,0,0,0.4);
+        }
+
+        .marker-pin i {
+            transform: rotate(45deg);
+            color: white;
+            font-size: 16px;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="h-full bg-slate-900 text-slate-800 flex flex-col">
+
+    <header class="bg-slate-900 text-white z-20 px-4 py-3 border-b border-slate-800 flex items-center justify-between shadow-md shrink-0">
+        <div class="flex items-center space-x-3">
+            <div class="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
+                <i class="fa-solid fa-map-location-dot text-lg"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-base md:text-lg leading-tight tracking-wide text-white">Explorer Map</h1>
+                <p class="text-xs text-slate-400 flex items-center gap-1.5">
+                    <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    OpenStreetMap Standard (No Key Needed)
+                </p>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-2">
+            <!-- Sidebar Toggle Button (Mobile/Desktop) -->
+            <button id="toggleSidebarBtn" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs md:text-sm font-medium rounded-lg transition-colors flex items-center gap-2 border border-slate-700">
+                <i class="fa-solid fa-bars-staggered"></i>
+                <span class="hidden sm:inline">Places Panel</span>
+            </button>
+
+            <!-- Locate Me Button -->
+            <button id="locateBtn" class="p-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs md:text-sm font-medium rounded-lg transition-colors flex items-center gap-2 shadow-sm" title="Find my location">
+                <i class="fa-solid fa-crosshairs"></i>
+                <span class="hidden md:inline">Locate Me</span>
+            </button>
+
+            <!-- Export / Import Button -->
+            <button id="openDataModalBtn" class="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg transition-colors border border-slate-700" title="Export / Import Data">
+                <i class="fa-solid fa-file-import"></i>
+            </button>
+        </div>
+    </header>
+
+    <main class="relative flex-1 flex overflow-hidden">
+        
+        <!-- Sidebar Panel -->
+        <aside id="sidebar" class="absolute lg:relative z-10 w-full sm:w-80 md:w-96 h-full bg-slate-900 border-r border-slate-800 flex flex-col transition-all duration-300 transform -translate-x-full lg:translate-x-0 shadow-2xl lg:shadow-none">
+            
+            <!-- Search & Filters Header -->
+            <div class="p-4 border-b border-slate-800 space-y-3 bg-slate-900/90 backdrop-blur">
+                <div class="relative">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-slate-400 text-sm"></i>
+                    <input type="text" id="searchInput" placeholder="Search places..." class="w-full bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-xl pl-10 pr-9 py-2.5 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all placeholder:text-slate-500">
+                    <button id="clearSearchBtn" class="hidden absolute right-3 top-2.5 text-slate-400 hover:text-slate-200 text-sm">
+                        <i class="fa-solid fa-circle-xmark"></i>
+                    </button>
+                </div>
+
+                <!-- Category Pills -->
+                <div class="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
+                    <button class="category-btn active px-3 py-1.5 rounded-lg bg-emerald-500 text-slate-900 font-semibold border border-emerald-400 whitespace-nowrap transition-all" data-category="all">
+                        All
+                    </button>
+                    <button class="category-btn px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium border border-slate-700 whitespace-nowrap transition-all" data-category="landmark">
+                        <i class="fa-solid fa-landmark text-amber-400 mr-1"></i> Landmarks
+                    </button>
+                    <button class="category-btn px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium border border-slate-700 whitespace-nowrap transition-all" data-category="park">
+                        <i class="fa-solid fa-tree text-emerald-400 mr-1"></i> Parks
+                    </button>
+                    <button class="category-btn px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium border border-slate-700 whitespace-nowrap transition-all" data-category="cafe">
+                        <i class="fa-solid fa-mug-hot text-amber-500 mr-1"></i> Cafes
+                    </button>
+                    <button class="category-btn px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium border border-slate-700 whitespace-nowrap transition-all" data-category="custom">
+                        <i class="fa-solid fa-user-pin text-purple-400 mr-1"></i> User
+                    </button>
+                </div>
+            </div>
+
+            <!-- Marker List -->
+            <div class="flex-1 overflow-y-auto p-4 space-y-2.5" id="placesList">
+                <!-- Dynamically populated places -->
+            </div>
+
+            <!-- Instructions Banner -->
+            <div class="p-3 bg-slate-800/60 border-t border-slate-800 text-xs text-slate-400 flex items-center justify-between">
+                <span class="flex items-center gap-2">
+                    <i class="fa-solid fa-mouse-pointer text-emerald-400"></i>
+                    Click map anywhere to add marker
+                </span>
+                <span id="placeCountBadge" class="bg-slate-700 text-slate-300 text-[10px] px-2 py-0.5 rounded-full font-mono">0 Places</span>
+            </div>
+        </aside>
+
+        <!-- Map Canvas Container -->
+        <div class="flex-1 relative h-full">
+            <div id="map"></div>
+
+            <!-- Map Overlay Controls -->
+            <div class="absolute bottom-6 right-6 z-[1000] flex flex-col space-y-2">
+                <button id="addMarkerModeBtn" class="bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-medium p-3.5 rounded-full shadow-lg transition-all flex items-center justify-center gap-2 text-sm group" title="Click to manually drop marker center">
+                    <i class="fa-solid fa-plus text-lg"></i>
+                    <span class="max-w-0 overflow-hidden whitespace-nowrap group-hover:max-w-xs transition-all duration-300 ease-in-out font-semibold">Drop Marker Here</span>
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <!-- Add Marker Modal -->
+    <div id="addMarkerModal" class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-[2000] hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl relative text-slate-200">
+            <button id="closeModalBtn" class="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            
+            <div class="flex items-center gap-3 mb-5">
+                <div class="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
+                    <i class="fa-solid fa-location-dot text-lg"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-lg text-white">Add New Location</h3>
+                    <p class="text-xs text-slate-400">Save a custom point of interest on the map</p>
+                </div>
+            </div>
+
+            <form id="addMarkerForm" class="space-y-4">
+                <input type="hidden" id="markerLat">
+                <input type="hidden" id="markerLng">
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">Location Title *</label>
+                    <input type="text" id="markerTitle" required placeholder="e.g. Favorite Coffee Shop" class="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500">
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">Category</label>
+                        <select id="markerCategory" class="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-emerald-500">
+                            <option value="custom">Custom Spot</option>
+                            <option value="landmark">Landmark</option>
+                            <option value="park">Park / Nature</option>
+                            <option value="cafe">Cafe / Dining</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">Pin Color</label>
+                        <div class="flex items-center gap-2 pt-1">
+                            <label class="cursor-pointer"><input type="radio" name="pinColor" value="#10b981" checked class="peer sr-only"><span class="w-7 h-7 rounded-full bg-emerald-500 block ring-2 ring-transparent peer-checked:ring-white transition-all"></span></label>
+                            <label class="cursor-pointer"><input type="radio" name="pinColor" value="#3b82f6" class="peer sr-only"><span class="w-7 h-7 rounded-full bg-blue-500 block ring-2 ring-transparent peer-checked:ring-white transition-all"></span></label>
+                            <label class="cursor-pointer"><input type="radio" name="pinColor" value="#f59e0b" class="peer sr-only"><span class="w-7 h-7 rounded-full bg-amber-500 block ring-2 ring-transparent peer-checked:ring-white transition-all"></span></label>
+                            <label class="cursor-pointer"><input type="radio" name="pinColor" value="#ec4899" class="peer sr-only"><span class="w-7 h-7 rounded-full bg-pink-500 block ring-2 ring-transparent peer-checked:ring-white transition-all"></span></label>
+                            <label class="cursor-pointer"><input type="radio" name="pinColor" value="#8b5cf6" class="peer sr-only"><span class="w-7 h-7 rounded-full bg-purple-500 block ring-2 ring-transparent peer-checked:ring-white transition-all"></span></label>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">Description</label>
+                    <textarea id="markerDesc" rows="2" placeholder="Add notes, memories, or helpful details..." class="w-full bg-slate-800 border border-slate-700 text-white rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 resize-none"></textarea>
+                </div>
+
+                <div class="text-xs text-slate-400 bg-slate-800/80 p-2.5 rounded-xl border border-slate-700/50 flex items-center justify-between">
+                    <span>Coordinates:</span>
+                    <span id="coordsDisplay" class="font-mono text-emerald-400">0.0000, 0.0000</span>
+                </div>
+
+                <div class="flex items-center justify-end gap-3 pt-2">
+                    <button type="button" id="cancelModalBtn" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium text-sm transition-colors">
+                        Cancel
+                    </button>
+                    <button type="submit" class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm transition-colors shadow-lg shadow-emerald-900/30">
+                        Save Location
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Export / Import Modal -->
+    <div id="dataModal" class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-[2000] hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl relative text-slate-200">
+            <button id="closeDataModalBtn" class="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            
+            <h3 class="font-bold text-lg text-white mb-1">Manage Map Data</h3>
+            <p class="text-xs text-slate-400 mb-5">Export or restore your custom places JSON data</p>
+
+            <div class="space-y-4">
+                <div class="p-4 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-between">
+                    <div>
+                        <h4 class="font-semibold text-sm text-white">Export GeoJSON</h4>
+                        <p class="text-xs text-slate-400">Download all points to a local .json file</p>
+                    </div>
+                    <button id="exportJsonBtn" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5">
+                        <i class="fa-solid fa-download"></i> Download
+                    </button>
+                </div>
+
+                <div class="p-4 rounded-xl bg-slate-800 border border-slate-700 space-y-3">
+                    <div>
+                        <h4 class="font-semibold text-sm text-white">Import Places</h4>
+                        <p class="text-xs text-slate-400">Load points from a previously exported JSON file</p>
+                    </div>
+                    <input type="file" id="importJsonInput" accept=".json" class="block w-full text-xs text-slate-400 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-slate-700 file:text-slate-200 hover:file:bg-slate-600 cursor-pointer">
+                </div>
+
+                <div class="pt-2 text-right">
+                    <button id="resetDefaultBtn" class="text-xs text-rose-400 hover:text-rose-300 font-medium underline">
+                        Reset to default sample locations
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed top-16 right-6 z-[2500] bg-slate-800 text-white border border-slate-700 px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 transition-all duration-300 transform translate-y-[-100px] opacity-0 pointer-events-none">
+        <i id="toastIcon" class="fa-solid fa-circle-check text-emerald-400 text-lg"></i>
+        <span id="toastMessage" class="text-xs md:text-sm font-medium">Notification message</span>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <script>
+        // Default Sample Locations
+        const defaultPlaces = [
+            {
+                id: '1',
+                title: 'Eiffel Tower',
+                category: 'landmark',
+                lat: 48.8584,
+                lng: 2.2945,
+                color: '#f59e0b',
+                icon: 'fa-landmark',
+                desc: 'Iconic 19th-century wrought-iron lattice tower on the Champ de Mars in Paris, France.'
+            },
+            {
+                id: '2',
+                title: 'Louvre Museum',
+                category: 'landmark',
+                lat: 48.8606,
+                lng: 2.3376,
+                color: '#f59e0b',
+                icon: 'fa-building-columns',
+                desc: 'World\'s most-visited museum and a historic monument in Paris, France.'
+            },
+            {
+                id: '3',
+                title: 'Jardin du Luxembourg',
+                category: 'park',
+                lat: 48.8462,
+                lng: 2.3372,
+                color: '#10b981',
+                icon: 'fa-tree',
+                desc: 'Beautiful 17th-century park featuring formal gardens, tree-lined promenades, and fountains.'
+            },
+            {
+                id: '4',
+                title: 'Café de Flore',
+                category: 'cafe',
+                lat: 48.8542,
+                lng: 2.3325,
+                color: '#ec4899',
+                icon: 'fa-mug-hot',
+                desc: 'One of the oldest coffeehouses in Paris, famous for its prestigious clientele.'
+            }
+        ];
+
+        // App State
+        let places = JSON.parse(localStorage.getItem('osm_map_places')) || [...defaultPlaces];
+        let activeCategory = 'all';
+        let searchQuery = '';
+        let map;
+        let markersGroup;
+        let activeTempMarker = null;
+
+        // Initialize Leaflet Map
+        function initMap() {
+            // Default center on Paris
+            map = L.map('map', {
+                zoomControl: false,
+                attributionControl: true
+            }).setView([48.8566, 2.3522], 13);
+
+            // Standard OpenStreetMap Tile Layer (NO API KEY REQUIRED)
+            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors'
+            }).addTo(map);
+
+            // Position zoom controls in top-right
+            L.control.zoom({ position: 'topright' }).addTo(map);
+
+            // Layer Group for markers
+            markersGroup = L.layerGroup().addTo(map);
+
+            // Event Listener: Click Map to add new marker
+            map.on('click', handleMapClick);
+
+            // Initial Render
+            renderMap();
+            renderPlacesList();
+        }
+
+        // Generate DivIcon for Custom Marker Styling
+        function createCustomIcon(color, iconClass = 'fa-location-dot') {
+            const html = `
+                <div class="marker-pin" style="background-color: ${color};">
+                    <i class="fa-solid ${iconClass}"></i>
+                </div>
+            `;
+            return L.divIcon({
+                className: 'custom-div-icon',
+                html: html,
+                iconSize: [36, 36],
+                iconAnchor: [18, 36],
+                popupAnchor: [0, -32]
+            });
+        }
+
+        // Render all markers based on search and category filter
+        function renderMap() {
+            markersGroup.clearLayers();
+
+            const filteredPlaces = getFilteredPlaces();
+
+            filteredPlaces.forEach(place => {
+                const icon = createCustomIcon(place.color, place.icon || getCategoryIcon(place.category));
+                const marker = L.marker([place.lat, place.lng], { icon: icon });
+
+                // Popup Template
+                const popupContent = `
+                    <div class="p-4 bg-slate-900 text-slate-100 rounded-xl">
+                        <div class="flex items-center gap-2 mb-1.5">
+                            <span class="w-2.5 h-2.5 rounded-full" style="background-color: ${place.color}"></span>
+                            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">${place.category}</span>
+                        </div>
+                        <h3 class="font-bold text-base text-white mb-1.5">${escapeHtml(place.title)}</h3>
+                        <p class="text-xs text-slate-300 leading-relaxed mb-3">${escapeHtml(place.desc || 'No description provided.')}</p>
+                        <div class="flex items-center justify-between pt-2 border-t border-slate-800 text-xs">
+                            <button onclick="flyToPlace('${place.id}')" class="text-emerald-400 hover:text-emerald-300 font-medium flex items-center gap-1">
+                                <i class="fa-solid fa-location-arrow"></i> Zoom
+                            </button>
+                            <button onclick="deletePlace('${place.id}')" class="text-rose-400 hover:text-rose-300 font-medium flex items-center gap-1">
+                                <i class="fa-solid fa-trash-can"></i> Delete
+                            </button>
+                        </div>
+                    </div>
+                `;
+
+                marker.bindPopup(popupContent);
+                markersGroup.addLayer(marker);
+            });
+        }
+
+        // Get filtered places array
+        function getFilteredPlaces() {
+            return places.filter(place => {
+                const matchesCategory = activeCategory === 'all' || place.category === activeCategory;
+                const matchesSearch = place.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                                      (place.desc && place.desc.toLowerCase().includes(searchQuery.toLowerCase()));
+                return matchesCategory && matchesSearch;
+            });
+        }
+
+        // Helper to get category default icon
+        function getCategoryIcon(category) {
+            switch(category) {
+                case 'landmark': return 'fa-landmark';
+                case 'park': return 'fa-tree';
+                case 'cafe': return 'fa-mug-hot';
+                default: return 'fa-location-dot';
+            }
+        }
+
+        // Render Sidebar Places Cards
+        function renderPlacesList() {
+            const container = document.getElementById('placesList');
+            const filteredPlaces = getFilteredPlaces();
+
+            document.getElementById('placeCountBadge').textContent = `${filteredPlaces.length} Places`;
+
+            if (filteredPlaces.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-10 px-4 text-slate-500">
+                        <i class="fa-solid fa-map-pin text-3xl mb-2 opacity-50"></i>
+                        <p class="text-sm font-medium">No places found</p>
+                        <p class="text-xs text-slate-600 mt-1">Try resetting filters or click on map to add a new place.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = filteredPlaces.map(place => `
+                <div onclick="flyToPlace('${place.id}')" class="group bg-slate-800/70 hover:bg-slate-800 border border-slate-700/60 hover:border-slate-600 p-3.5 rounded-xl cursor-pointer transition-all duration-200">
+                    <div class="flex items-start justify-between gap-2">
+                        <div class="flex items-center gap-2.5">
+                            <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 shadow-sm" style="background-color: ${place.color}20; color: ${place.color}">
+                                <i class="fa-solid ${place.icon || getCategoryIcon(place.category)} text-sm"></i>
+                            </div>
+                            <div>
+                                <h4 class="font-semibold text-sm text-slate-100 group-hover:text-emerald-400 transition-colors">${escapeHtml(place.title)}</h4>
+                                <span class="text-[10px] font-medium text-slate-400 uppercase tracking-wider">${place.category}</span>
+                            </div>
+                        </div>
+                        <button onclick="event.stopPropagation(); deletePlace('${place.id}')" class="text-slate-500 hover:text-rose-400 p-1 transition-colors" title="Delete spot">
+                            <i class="fa-solid fa-trash-can text-xs"></i>
+                        </button>
+                    </div>
+                    ${place.desc ? `<p class="text-xs text-slate-400 mt-2 line-clamp-2 leading-relaxed">${escapeHtml(place.desc)}</p>` : ''}
+                </div>
+            `).join('');
+        }
+
+        // Handle Map Click for Adding Marker
+        function handleMapClick(e) {
+            const { lat, lng } = e.latlng;
+            openAddModal(lat, lng);
+        }
+
+        // Open Modal Form
+        function openAddModal(lat, lng) {
+            document.getElementById('markerLat').value = lat;
+            document.getElementById('markerLng').value = lng;
+            document.getElementById('coordsDisplay').textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+            document.getElementById('markerTitle').value = '';
+            document.getElementById('markerDesc').value = '';
+            document.getElementById('addMarkerModal').classList.remove('hidden');
+            setTimeout(() => document.getElementById('markerTitle').focus(), 100);
+        }
+
+        function closeAddModal() {
+            document.getElementById('addMarkerModal').classList.add('hidden');
+        }
+
+        // Add Marker Form Submit
+        document.getElementById('addMarkerForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const lat = parseFloat(document.getElementById('markerLat').value);
+            const lng = parseFloat(document.getElementById('markerLng').value);
+            const title = document.getElementById('markerTitle').value.trim();
+            const category = document.getElementById('markerCategory').value;
+            const desc = document.getElementById('markerDesc').value.trim();
+            const color = document.querySelector('input[name="pinColor"]:checked').value;
+
+            const newPlace = {
+                id: Date.now().toString(),
+                title,
+                category,
+                lat,
+                lng,
+                color,
+                icon: getCategoryIcon(category),
+                desc
+            };
+
+            places.push(newPlace);
+            savePlaces();
+            renderMap();
+            renderPlacesList();
+            closeAddModal();
+            showToast('New location added successfully!');
+
+            // Fly to newly created marker
+            map.flyTo([lat, lng], 15, { duration: 1.2 });
+        });
+
+        // Delete Place Function
+        window.deletePlace = function(id) {
+            places = places.filter(p => p.id !== id);
+            savePlaces();
+            renderMap();
+            renderPlacesList();
+            showToast('Location removed', 'info');
+        };
+
+        // Fly To Location Function
+        window.flyToPlace = function(id) {
+            const place = places.find(p => p.id === id);
+            if (place) {
+                map.flyTo([place.lat, place.lng], 16, { duration: 1.2 });
+                
+                // Open matching marker popup
+                markersGroup.eachLayer(layer => {
+                    const latlng = layer.getLatLng();
+                    if (Math.abs(latlng.lat - place.lat) < 0.0001 && Math.abs(latlng.lng - place.lng) < 0.0001) {
+                        setTimeout(() => layer.openPopup(), 1200);
+                    }
+                });
+
+                // On mobile, close sidebar after selecting place
+                if (window.innerWidth < 1024) {
+                    document.getElementById('sidebar').classList.add('-translate-x-full');
+                }
+            }
+        };
+
+        // Save to LocalStorage
+        function savePlaces() {
+            localStorage.setItem('osm_map_places', JSON.stringify(places));
+        }
+
+        // Export JSON Data
+        document.getElementById('exportJsonBtn').addEventListener('click', () => {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(places, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", `map_places_${new Date().toISOString().slice(0,10)}.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+            showToast('Exported map data to JSON');
+        });
+
+        // Import JSON Data
+        document.getElementById('importJsonInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                try {
+                    const imported = JSON.parse(evt.target.result);
+                    if (Array.isArray(imported)) {
+                        places = imported;
+                        savePlaces();
+                        renderMap();
+                        renderPlacesList();
+                        document.getElementById('dataModal').classList.add('hidden');
+                        showToast('Map data imported successfully!');
+                    } else {
+                        showToast('Invalid JSON file format', 'error');
+                    }
+                } catch(err) {
+                    showToast('Failed to parse JSON file', 'error');
+                }
+            };
+            reader.readAsText(file);
+        });
+
+        // Reset to default
+        document.getElementById('resetDefaultBtn').addEventListener('click', () => {
+            places = [...defaultPlaces];
+            savePlaces();
+            renderMap();
+            renderPlacesList();
+            document.getElementById('dataModal').classList.add('hidden');
+            showToast('Reset to default locations');
+        });
+
+        // Locate User Feature
+        document.getElementById('locateBtn').addEventListener('click', () => {
+            if (!navigator.geolocation) {
+                showToast('Geolocation is not supported by your browser', 'error');
+                return;
+            }
+
+            showToast('Finding your position...');
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const { latitude, longitude } = position.coords;
+                    map.flyTo([latitude, longitude], 15, { duration: 1.5 });
+
+                    // Add user position accuracy pulse
+                    L.circle([latitude, longitude], {
+                        color: '#10b981',
+                        fillColor: '#10b981',
+                        fillOpacity: 0.25,
+                        radius: position.coords.accuracy || 100
+                    }).addTo(map);
+
+                    showToast('Found your location!');
+                },
+                () => {
+                    showToast('Unable to retrieve your location', 'error');
+                }
+            );
+        });
+
+        // Category Filter Buttons
+        document.querySelectorAll('.category-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.category-btn').forEach(b => {
+                    b.classList.remove('active', 'bg-emerald-500', 'text-slate-900', 'border-emerald-400');
+                    b.classList.add('bg-slate-800', 'text-slate-300', 'border-slate-700');
+                });
+
+                const current = e.currentTarget;
+                current.classList.remove('bg-slate-800', 'text-slate-300', 'border-slate-700');
+                current.classList.add('active', 'bg-emerald-500', 'text-slate-900', 'border-emerald-400');
+
+                activeCategory = current.dataset.category;
+                renderMap();
+                renderPlacesList();
+            });
+        });
+
+        // Search Input Listener
+        const searchInput = document.getElementById('searchInput');
+        const clearSearchBtn = document.getElementById('clearSearchBtn');
+
+        searchInput.addEventListener('input', (e) => {
+            searchQuery = e.target.value.trim();
+            clearSearchBtn.classList.toggle('hidden', searchQuery === '');
+            renderMap();
+            renderPlacesList();
+        });
+
+        clearSearchBtn.addEventListener('click', () => {
+            searchInput.value = '';
+            searchQuery = '';
+            clearSearchBtn.classList.add('hidden');
+            renderMap();
+            renderPlacesList();
+        });
+
+        // Sidebar Toggle
+        document.getElementById('toggleSidebarBtn').addEventListener('click', () => {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('-translate-x-full');
+        });
+
+        // Manual Add Marker Mode button (Centers on current map viewport)
+        document.getElementById('addMarkerModeBtn').addEventListener('click', () => {
+            const center = map.getCenter();
+            openAddModal(center.lat, center.lng);
+        });
+
+        // Modal Close Buttons
+        document.getElementById('closeModalBtn').addEventListener('click', closeAddModal);
+        document.getElementById('cancelModalBtn').addEventListener('click', closeAddModal);
+
+        document.getElementById('openDataModalBtn').addEventListener('click', () => {
+            document.getElementById('dataModal').classList.remove('hidden');
+        });
+        document.getElementById('closeDataModalBtn').addEventListener('click', () => {
+            document.getElementById('dataModal').classList.add('hidden');
+        });
+
+        // Toast Notification Helper
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            const toastIcon = document.getElementById('toastIcon');
+
+            toastMessage.textContent = message;
+
+            if (type === 'error') {
+                toastIcon.className = 'fa-solid fa-circle-exclamation text-rose-400 text-lg';
+            } else if (type === 'info') {
+                toastIcon.className = 'fa-solid fa-circle-info text-blue-400 text-lg';
+            } else {
+                toastIcon.className = 'fa-solid fa-circle-check text-emerald-400 text-lg';
+            }
+
+            toast.classList.remove('translate-y-[-100px]', 'opacity-0', 'pointer-events-none');
+            
+            setTimeout(() => {
+                toast.classList.add('translate-y-[-100px]', 'opacity-0', 'pointer-events-none');
+            }, 3000);
+        }
+
+        // HTML Escape Helper for Security
+        function escapeHtml(str) {
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        // Initialize App on Window Load
+        window.onload = function() {
+            initMap();
+        };
+    </script>
+</body>
+</html>
